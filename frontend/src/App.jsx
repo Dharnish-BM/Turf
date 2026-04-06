@@ -6,6 +6,7 @@ import MatchesPanel from "./components/MatchesPanel";
 import AuctionPanel from "./components/AuctionPanel";
 import ScoringPanel from "./components/ScoringPanel";
 import LeaderboardPanel from "./components/LeaderboardPanel";
+import AppHeader from "./components/AppHeader";
 import "./index.css";
 
 const tabs = ["Players", "Matches", "Auction", "Scoring", "Leaderboard"];
@@ -13,6 +14,7 @@ const tabs = ["Players", "Matches", "Auction", "Scoring", "Leaderboard"];
 function App() {
   const { token, matches, selectedMatch, setSelectedMatch, activeMatch, logout } = useApp();
   const [activeTab, setActiveTab] = useState("Players");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!token) {
     return <LoginView />;
@@ -20,17 +22,14 @@ function App() {
 
   return (
     <main className="container">
-      <h1>Mini IPL Turf Manager</h1>
-      <div className="inline">
-        <div className="tabs">
-          {tabs.map((tab) => (
-            <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
-              {tab}
-            </button>
-          ))}
-        </div>
-        <button onClick={logout}>Logout</button>
-      </div>
+      <AppHeader
+        tabs={tabs}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onLogout={logout}
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
+      />
 
       {(activeTab === "Auction" || activeTab === "Scoring") && (
         <select value={selectedMatch} onChange={(e) => setSelectedMatch(e.target.value)}>

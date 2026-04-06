@@ -8,6 +8,15 @@ function getRoom(matchId) {
   return `match:${matchId}`;
 }
 
+async function isMatchCaptain(matchId, userId) {
+  const match = await Match.findById(matchId).select("teams.teamA.captain teams.teamB.captain");
+  if (!match) return false;
+  return (
+    String(match.teams.teamA.captain) === String(userId) ||
+    String(match.teams.teamB.captain) === String(userId)
+  );
+}
+
 async function emitState(io, matchId) {
   const auction = await Auction.findOne({ matchId }).populate("currentPlayer", "name").populate("bids.captain", "name");
   io.to(getRoom(matchId)).emit("bid:update", auction);
@@ -33,10 +42,23 @@ export function setupAuctionSocket(io) {
       await emitState(io, matchId);
     });
 
+    socket.on("match:join", async ({ matchId }) => {
+      socket.join(getRoom(matchId));
+      await emitState(io, matchId);
+    });
+
     socket.on("auction:start", async ({ matchId }) => {
       if (socket.user.role !== "admin") return;
       const auction = await Auction.findOne({ matchId });
       if (!auction) return;
+      if (auction.status === "running") {
+        io.to(getRoom(matchId)).emit("auction:error", "Auction already running");
+        return;
+      }
+      if (auction.status === "completed") {
+        io.to(getRoom(matchId)).emit("auction:error", "Auction already completed");
+        return;
+      }
       auction.status = "running";
       auction.currentPlayer = auction.playerQueue[0] || null;
       await auction.save();
@@ -49,11 +71,27 @@ export function setupAuctionSocket(io) {
     socket.on("bid:placed", async ({ matchId, amount }) => {
       const auction = await Auction.findOne({ matchId });
       if (!auction || auction.status !== "running") return;
+      if (!auction.currentPlayer) return;
       if (!socket.user.isCaptain) return;
-      if (amount < MIN_BID) return;
+      const allowedCaptain = await isMatchCaptain(matchId, socket.user.id);
+      if (!allowedCaptain) {
+        io.to(getRoom(matchId)).emit("auction:error", "Only captains of this match can bid");
+        return;
+      }
+      if (!Number.isFinite(amount) || amount < MIN_BID) {
+        io.to(getRoom(matchId)).emit("auction:error", `Bid must be at least ${MIN_BID}`);
+        return;
+      }
       const captainBudget = auction.budgets.get(socket.user.id) || 0;
       const highest = auction.bids.reduce((acc, bid) => Math.max(acc, bid.amount), 0);
-      if (amount <= highest || amount > captainBudget) return;
+      if (amount <= highest) {
+        io.to(getRoom(matchId)).emit("auction:error", "Bid must be higher than current highest");
+        return;
+      }
+      if (amount > captainBudget) {
+        io.to(getRoom(matchId)).emit("auction:error", "Bid exceeds captain budget");
+        return;
+      }
       auction.bids.push({ captain: socket.user.id, amount });
       await auction.save();
       io.to(getRoom(matchId)).emit("bid:placed", { captain: socket.user.id, amount });
@@ -74,6 +112,21 @@ export function setupAuctionSocket(io) {
           captain: winningBid.captain,
           amount: winningBid.amount
         });
+
+        const match = await Match.findById(matchId);
+        if (match) {
+          const winningCaptain = String(winningBid.captain);
+          if (String(match.teams.teamA.captain) === winningCaptain) {
+            const nextPlayers = new Set(match.teams.teamA.players.map(String));
+            nextPlayers.add(String(auction.currentPlayer));
+            match.teams.teamA.players = [...nextPlayers];
+          } else if (String(match.teams.teamB.captain) === winningCaptain) {
+            const nextPlayers = new Set(match.teams.teamB.players.map(String));
+            nextPlayers.add(String(auction.currentPlayer));
+            match.teams.teamB.players = [...nextPlayers];
+          }
+          await match.save();
+        }
       }
 
       auction.playerQueue = auction.playerQueue.filter((p) => String(p) !== String(auction.currentPlayer));

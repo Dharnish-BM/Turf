@@ -20,13 +20,12 @@ function LoginView() {
   return (
     <main className="container">
       <h1>Mini IPL Turf Manager</h1>
-      <form className="card grid" onSubmit={onSubmit}>
+      <form className="card grid login-card" onSubmit={onSubmit}>
         <h2>Login</h2>
         <input required placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input required placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <button type="submit">Sign in</button>
         {error && <small>{error}</small>}
-        <small>Use `/api/auth/register-admin` once to create the first admin.</small>
       </form>
     </main>
   );

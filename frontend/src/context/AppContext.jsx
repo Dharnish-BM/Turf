@@ -12,6 +12,7 @@ export function AppProvider({ children }) {
   const [leaderboard, setLeaderboard] = useState({ topBatsmen: [], topBowlers: [] });
   const [selectedMatch, setSelectedMatch] = useState("");
   const [auctionState, setAuctionState] = useState(null);
+  const [auctionError, setAuctionError] = useState("");
   const [scorecard, setScorecard] = useState(null);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export function AppProvider({ children }) {
     setMatches([]);
     setLeaderboard({ topBatsmen: [], topBowlers: [] });
     setAuctionState(null);
+    setAuctionError("");
     setScorecard(null);
   }
 
@@ -64,15 +66,48 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (!token || !selectedMatch) return;
     const socket = getAuctionSocket(token);
+    const onBidUpdate = (nextState) => {
+      setAuctionError("");
+      setAuctionState(nextState);
+    };
+    const onAuctionStart = () => bootstrap();
+    const onPlayerSold = () => bootstrap();
+    const onAuctionError = (message) => setAuctionError(message || "Auction action failed");
+    const onScoreUpdate = (payload) => {
+      if (payload?.scorecard) {
+        setScorecard(payload.scorecard);
+        return;
+      }
+      loadScorecard(selectedMatch);
+    };
+    const onInningsEvent = (payload) => {
+      if (payload?.scorecard) {
+        setScorecard(payload.scorecard);
+      } else {
+        loadScorecard(selectedMatch);
+      }
+      bootstrap();
+    };
     socket.emit("auction:join", { matchId: selectedMatch });
-    socket.on("bid:update", setAuctionState);
-    socket.on("auction:start", () => bootstrap());
-    socket.on("player:sold", () => bootstrap());
+    socket.emit("match:join", { matchId: selectedMatch });
+    socket.on("bid:update", onBidUpdate);
+    socket.on("auction:start", onAuctionStart);
+    socket.on("player:sold", onPlayerSold);
+    socket.on("auction:error", onAuctionError);
+    socket.on("score:update", onScoreUpdate);
+    socket.on("innings:start", onInningsEvent);
+    socket.on("innings:complete", onInningsEvent);
     return () => {
-      socket.off("bid:update", setAuctionState);
+      socket.off("bid:update", onBidUpdate);
+      socket.off("auction:start", onAuctionStart);
+      socket.off("player:sold", onPlayerSold);
+      socket.off("auction:error", onAuctionError);
+      socket.off("score:update", onScoreUpdate);
+      socket.off("innings:start", onInningsEvent);
+      socket.off("innings:complete", onInningsEvent);
       socket.disconnect();
     };
-  }, [token, selectedMatch, bootstrap]);
+  }, [token, selectedMatch, bootstrap, loadScorecard]);
 
   useEffect(() => {
     loadScorecard(selectedMatch);
@@ -92,6 +127,7 @@ export function AppProvider({ children }) {
     setSelectedMatch,
     activeMatch,
     auctionState,
+    auctionError,
     scorecard,
     login,
     logout,

@@ -5,6 +5,16 @@ import { Scorecard } from "../models/Scorecard.js";
 import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
+const roomForMatch = (matchId) => `match:${matchId}`;
+
+async function fetchPopulatedScorecard(matchId) {
+  return Scorecard.findOne({ matchId })
+    .populate("innings.balls.batsman", "name")
+    .populate("innings.balls.bowler", "name")
+    .populate("innings.striker", "name")
+    .populate("innings.nonStriker", "name")
+    .populate("innings.currentBowler", "name");
+}
 
 function isLegalBall(extraType) {
   return !["wide", "no-ball"].includes(extraType || "none");
@@ -27,17 +37,64 @@ function bowlingTeamFor(battingTeam) {
   return battingTeam === "teamA" ? "teamB" : "teamA";
 }
 
+function hasPlayer(team, playerId) {
+  return team.players.some((id) => String(id) === String(playerId));
+}
+
+function legalBallCountFromInnings(innings) {
+  return innings.balls.filter((ball) => isLegalBall(ball.extras?.type)).length;
+}
+
+function validateWicketPayload(wicket) {
+  if (!wicket?.isWicket) return null;
+  const allowed = new Set(["bowled", "caught", "lbw", "run-out", "stumped", "hit-wicket", "retired-out"]);
+  if (!wicket.type || !allowed.has(wicket.type)) {
+    return "Invalid wicket type";
+  }
+  if (!wicket.playerOut) {
+    return "playerOut is required when wicket is true";
+  }
+  return null;
+}
+
 router.get("/", auth(), async (_, res) => {
   const matches = await Match.find()
     .populate("players", "name email isCaptain")
     .populate("teams.teamA.captain", "name")
     .populate("teams.teamB.captain", "name")
+    .populate("teams.teamA.players", "name")
+    .populate("teams.teamB.players", "name")
     .sort({ createdAt: -1 });
   return res.json(matches);
 });
 
 router.post("/", auth(["admin"]), async (req, res) => {
-  const match = await Match.create(req.body);
+  const body = req.body;
+  const teamAPlayers = new Set((body.teams?.teamA?.players || []).map(String));
+  const teamBPlayers = new Set((body.teams?.teamB?.players || []).map(String));
+  if (body.teams?.teamA?.captain) teamAPlayers.add(String(body.teams.teamA.captain));
+  if (body.teams?.teamB?.captain) teamBPlayers.add(String(body.teams.teamB.captain));
+
+  if (body.mode === "manual" && teamAPlayers.size <= 1 && teamBPlayers.size <= 1) {
+    const allPlayers = (body.players || []).map(String);
+    let turn = 0;
+    for (const playerId of allPlayers) {
+      if (teamAPlayers.has(playerId) || teamBPlayers.has(playerId)) continue;
+      if (turn % 2 === 0) teamAPlayers.add(playerId);
+      else teamBPlayers.add(playerId);
+      turn += 1;
+    }
+  }
+
+  const payload = {
+    ...body,
+    teams: {
+      ...body.teams,
+      teamA: { ...body.teams.teamA, players: [...teamAPlayers] },
+      teamB: { ...body.teams.teamB, players: [...teamBPlayers] }
+    }
+  };
+  const match = await Match.create(payload);
   await Scorecard.create({ matchId: match._id, innings: [] });
   if (match.mode === "auction") {
     await Auction.create({
@@ -88,6 +145,15 @@ router.post("/:id/innings/start", auth(["admin"]), async (req, res) => {
     return res.status(400).json({ message: "Current innings already active" });
   }
 
+  const battingTeamState = match.teams[battingTeam];
+  const bowlingTeamState = match.teams[bowlingTeam];
+  if (!hasPlayer(battingTeamState, openingBatsmanA) || !hasPlayer(battingTeamState, openingBatsmanB)) {
+    return res.status(400).json({ message: "Opening batsmen must belong to batting team" });
+  }
+  if (!hasPlayer(bowlingTeamState, bowler)) {
+    return res.status(400).json({ message: "Opening bowler must belong to bowling team" });
+  }
+
   scorecard.innings.push({
     battingTeam,
     bowlingTeam,
@@ -105,6 +171,15 @@ router.post("/:id/innings/start", auth(["admin"]), async (req, res) => {
   scorecard.currentInnings = scorecard.innings.length - 1;
   await scorecard.save();
   await Match.findByIdAndUpdate(req.params.id, { status: "live" });
+  const populatedScorecard = await fetchPopulatedScorecard(req.params.id);
+  req.app.get("io")?.to(roomForMatch(req.params.id)).emit("innings:start", {
+    matchId: req.params.id,
+    scorecard: populatedScorecard
+  });
+  req.app.get("io")?.to(roomForMatch(req.params.id)).emit("score:update", {
+    matchId: req.params.id,
+    scorecard: populatedScorecard
+  });
 
   return res.json(scorecard);
 });
@@ -120,6 +195,20 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
   if (!innings || innings.isComplete) {
     return res.status(400).json({ message: "No active innings. Start innings first." });
   }
+  const wicketError = validateWicketPayload(wicket);
+  if (wicketError) {
+    return res.status(400).json({ message: wicketError });
+  }
+
+  const battingTeam = match.teams[innings.battingTeam];
+  const bowlingTeam = match.teams[innings.bowlingTeam];
+  if (!battingTeam || !bowlingTeam) {
+    return res.status(400).json({ message: "Invalid team state for active innings" });
+  }
+  if (!hasPlayer(battingTeam, innings.striker) || !hasPlayer(battingTeam, innings.nonStriker)) {
+    return res.status(400).json({ message: "Only batting team players can bat" });
+  }
+
   if (!innings.striker || !innings.nonStriker || !innings.currentBowler) {
     return res.status(400).json({ message: "Innings is missing striker/non-striker/bowler" });
   }
@@ -127,6 +216,17 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
     return res.status(400).json({ message: "Select next batsman after wicket" });
   }
   if (bowler) {
+    if (!hasPlayer(bowlingTeam, bowler)) {
+      return res.status(400).json({ message: "Only bowling team players can bowl" });
+    }
+    const legalBallsBefore = legalBallCountFromInnings(innings);
+    const startOfOver = legalBallsBefore > 0 && legalBallsBefore % 6 === 0;
+    if (startOfOver) {
+      const previousBall = innings.balls[innings.balls.length - 1];
+      if (previousBall && String(previousBall.bowler) === String(bowler) && match.format === "overs") {
+        return res.status(400).json({ message: "Bowler cannot bowl consecutive overs in limited overs format" });
+      }
+    }
     innings.currentBowler = bowler;
   }
 
@@ -135,13 +235,12 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
   const batRuns = Number(runs || 0);
   const totalOnBall = batRuns + extraRuns;
 
-  if (legal) {
-    innings.ballsFaced += 1;
-  }
+  if (legal) innings.ballsFaced += 1;
   innings.totalRuns += totalOnBall;
 
-  const over = Math.floor(innings.ballsFaced / 6);
-  const ball = (innings.ballsFaced % 6) || 6;
+  const legalBallsNow = innings.ballsFaced;
+  const over = legalBallsNow > 0 ? Math.floor((legalBallsNow - 1) / 6) : 0;
+  const ball = legalBallsNow > 0 ? ((legalBallsNow - 1) % 6) + 1 : 1;
 
   innings.balls.push({
     batsman: innings.striker,
@@ -149,7 +248,7 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
     runs: batRuns,
     extras: { type: extras.type || "none", runs: extraRuns },
     wicket: wicket || { isWicket: false, type: "", playerOut: null },
-    over: legal ? over : Math.floor((innings.ballsFaced + 1) / 6),
+    over,
     ball
   });
 
@@ -162,6 +261,9 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
       innings.nonStriker = nextBatsman || innings.nonStriker;
     } else {
       innings.striker = nextBatsman || innings.striker;
+    }
+    if (nextBatsman && !hasPlayer(battingTeam, nextBatsman)) {
+      return res.status(400).json({ message: "Next batsman must belong to batting team" });
     }
     innings.nextBatsmanRequired = !nextBatsman;
   } else {
@@ -193,16 +295,22 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
   }
 
   await scorecard.save();
+  const populatedScorecard = await fetchPopulatedScorecard(req.params.id);
+  req.app.get("io")?.to(roomForMatch(req.params.id)).emit("score:update", {
+    matchId: req.params.id,
+    scorecard: populatedScorecard
+  });
+  if (innings.isComplete) {
+    req.app.get("io")?.to(roomForMatch(req.params.id)).emit("innings:complete", {
+      matchId: req.params.id,
+      scorecard: populatedScorecard
+    });
+  }
   return res.json(scorecard);
 });
 
 router.get("/:id/scorecard", auth(), async (req, res) => {
-  const scorecard = await Scorecard.findOne({ matchId: req.params.id })
-    .populate("innings.balls.batsman", "name")
-    .populate("innings.balls.bowler", "name")
-    .populate("innings.striker", "name")
-    .populate("innings.nonStriker", "name")
-    .populate("innings.currentBowler", "name");
+  const scorecard = await fetchPopulatedScorecard(req.params.id);
   return res.json(scorecard);
 });
 
