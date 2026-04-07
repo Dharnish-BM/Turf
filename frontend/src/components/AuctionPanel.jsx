@@ -53,6 +53,7 @@ export default function AuctionPanel() {
 
   const highest = bids[0]?.amount || 0;
   const nextMin = Math.max(MIN_BID, highest + 500);
+  const normalizedBidAmount = Math.max(Number(bidAmount) || 0, nextMin);
 
   const budgetEntries = useMemo(() => budgetsToEntries(auctionState?.budgets), [auctionState?.budgets]);
 
@@ -70,7 +71,7 @@ export default function AuctionPanel() {
   }
 
   function emitBid() {
-    const n = Number(bidAmount);
+    const n = normalizedBidAmount;
     getAuctionSocket(token).emit("bid:placed", { matchId: selectedMatch, amount: n });
   }
 
@@ -80,7 +81,11 @@ export default function AuctionPanel() {
   }
 
   function captainLabel(id) {
-    const sid = String(id);
+    if (id && typeof id === "object") {
+      if (id.name) return id.name;
+      if (id._id) id = id._id;
+    }
+    const sid = String(id || "");
     if (String(activeMatch?.teams?.teamA?.captain?._id) === sid) return `${activeMatch.teams.teamA.name} (A)`;
     if (String(activeMatch?.teams?.teamB?.captain?._id) === sid) return `${activeMatch.teams.teamB.name} (B)`;
     const p = players.find((x) => String(x._id) === sid);
@@ -185,10 +190,10 @@ export default function AuctionPanel() {
                 type="number"
                 label="Your bid (₹)"
                 fullWidth
-                value={bidAmount}
-                onChange={(e) => setBidAmount(Number(e.target.value))}
+                value={normalizedBidAmount}
+                onChange={(e) => setBidAmount(Number(e.target.value) || 0)}
                 inputProps={{ min: nextMin, step: 500 }}
-                helperText={`Must exceed ₹${highest.toLocaleString() || "0"} and stay within budget`}
+                helperText={`Minimum ₹${nextMin.toLocaleString()} (auto-adjusts when highest bid changes)`}
               />
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ gap: 1 }}>
                 {[nextMin, nextMin + 5000, nextMin + 10000, nextMin + 25000].map((amt) => (
@@ -197,7 +202,7 @@ export default function AuctionPanel() {
                   </Tooltip>
                 ))}
               </Stack>
-              <Button variant="contained" size="large" disabled={!canBidNow || Number(bidAmount) < nextMin} onClick={emitBid}>
+              <Button variant="contained" size="large" disabled={!canBidNow} onClick={emitBid}>
                 Place bid
               </Button>
               {running && (
