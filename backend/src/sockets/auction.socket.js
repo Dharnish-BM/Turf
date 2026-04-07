@@ -3,6 +3,7 @@ import { Auction } from "../models/Auction.js";
 import { Match } from "../models/Match.js";
 
 const MIN_BID = 5000;
+const onlineUserCounts = new Map();
 
 function getRoom(matchId) {
   return `match:${matchId}`;
@@ -22,6 +23,10 @@ async function emitState(io, matchId) {
   io.to(getRoom(matchId)).emit("bid:update", auction);
 }
 
+function emitPresence(io) {
+  io.emit("presence:update", [...onlineUserCounts.keys()]);
+}
+
 export function setupAuctionSocket(io) {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;
@@ -37,6 +42,12 @@ export function setupAuctionSocket(io) {
   });
 
   io.on("connection", (socket) => {
+    const uid = String(socket.user?.id || "");
+    if (uid) {
+      onlineUserCounts.set(uid, (onlineUserCounts.get(uid) || 0) + 1);
+      emitPresence(io);
+    }
+
     socket.on("auction:join", async ({ matchId }) => {
       socket.join(getRoom(matchId));
       await emitState(io, matchId);
@@ -187,6 +198,14 @@ export function setupAuctionSocket(io) {
       io.to(getRoom(matchId)).emit("player:sold", winningBid || null);
       io.to(getRoom(matchId)).emit("player:next", { currentPlayer: auction.currentPlayer });
       await emitState(io, matchId);
+    });
+
+    socket.on("disconnect", () => {
+      if (!uid) return;
+      const n = (onlineUserCounts.get(uid) || 0) - 1;
+      if (n <= 0) onlineUserCounts.delete(uid);
+      else onlineUserCounts.set(uid, n);
+      emitPresence(io);
     });
   });
 }

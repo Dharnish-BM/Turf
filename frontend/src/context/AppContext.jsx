@@ -13,6 +13,7 @@ export function AppProvider({ children }) {
   const [selectedMatch, setSelectedMatch] = useState("");
   const [auctionState, setAuctionState] = useState(null);
   const [auctionError, setAuctionError] = useState("");
+  const [onlineUserIds, setOnlineUserIds] = useState([]);
   const [scorecard, setScorecard] = useState(null);
   const [bootstrapLoading, setBootstrapLoading] = useState(false);
   const [snackbar, setSnackbar] = useState(null);
@@ -91,6 +92,9 @@ export function AppProvider({ children }) {
   }
 
   function logout() {
+    if (token) {
+      getAuctionSocket(token).disconnect();
+    }
     localStorage.removeItem("token");
     setToken("");
     setUser(null);
@@ -99,6 +103,7 @@ export function AppProvider({ children }) {
     setLeaderboard({ topBatsmen: [], topBowlers: [] });
     setAuctionState(null);
     setAuctionError("");
+    setOnlineUserIds([]);
     setScorecard(null);
   }
 
@@ -113,6 +118,18 @@ export function AppProvider({ children }) {
       bootstrap();
     }
   }, [token, bootstrap]);
+
+  useEffect(() => {
+    if (!token) return;
+    const socket = getAuctionSocket(token);
+    const onPresence = (ids) => {
+      setOnlineUserIds((ids || []).map((id) => String(id)));
+    };
+    socket.on("presence:update", onPresence);
+    return () => {
+      socket.off("presence:update", onPresence);
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!token || !selectedMatch) return;
@@ -156,7 +173,6 @@ export function AppProvider({ children }) {
       socket.off("score:update", onScoreUpdate);
       socket.off("innings:start", onInningsEvent);
       socket.off("innings:complete", onInningsEvent);
-      socket.disconnect();
     };
   }, [token, selectedMatch, bootstrap, loadScorecard]);
 
@@ -179,6 +195,7 @@ export function AppProvider({ children }) {
     activeMatch,
     auctionState,
     auctionError,
+    onlineUserIds,
     scorecard,
     login,
     logout,

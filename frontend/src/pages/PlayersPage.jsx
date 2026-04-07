@@ -20,6 +20,8 @@ import IconButton from "@mui/material/IconButton";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
+import Avatar from "@mui/material/Avatar";
+import Badge from "@mui/material/Badge";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
@@ -33,7 +35,7 @@ const emptyForm = { name: "", email: "", password: "", isCaptain: false };
 
 export default function PlayersPage() {
   const navigate = useNavigate();
-  const { players, bootstrap, user, showToast } = useApp();
+  const { players, bootstrap, user, showToast, onlineUserIds } = useApp();
   const isAdmin = user?.role === "admin";
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -126,6 +128,17 @@ export default function PlayersPage() {
                 <TableRow key={p._id} hover>
                   <TableCell>
                     <Stack direction="row" alignItems="center" spacing={1}>
+                      <Badge
+                        overlap="circular"
+                        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                        variant="dot"
+                        color="success"
+                        invisible={!onlineUserIds.includes(String(p._id))}
+                      >
+                        <Avatar src={p.avatarUrl || undefined} sx={{ width: 28, height: 28, fontSize: "0.85rem" }}>
+                          {(p.name || "?").charAt(0).toUpperCase()}
+                        </Avatar>
+                      </Badge>
                       {p.name}
                       {p.isCaptain && (
                         <Chip icon={<StarRoundedIcon />} label="Captain" size="small" color="secondary" variant="outlined" />
