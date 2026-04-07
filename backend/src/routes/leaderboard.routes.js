@@ -6,6 +6,9 @@ import { auth } from "../middleware/auth.js";
 const router = express.Router();
 
 router.get("/", auth(), async (_, res) => {
+  const legalBatTypes = ["none", "bye", "leg-bye"];
+  const legalBowlTypes = ["none", "bye", "leg-bye"];
+
   const batsmen = await Scorecard.aggregate([
     { $unwind: "$innings" },
     { $unwind: "$innings.balls" },
@@ -13,16 +16,23 @@ router.get("/", auth(), async (_, res) => {
       $group: {
         _id: "$innings.balls.batsman",
         runs: { $sum: "$innings.balls.runs" },
-        balls: { $sum: 1 }
+        balls: {
+          $sum: {
+            $cond: [{ $in: ["$innings.balls.extras.type", legalBatTypes] }, 1, 0]
+          }
+        },
+        matchesSet: { $addToSet: "$matchId" }
       }
     },
     {
       $addFields: {
+        matches: { $size: "$matchesSet" },
         strikeRate: {
           $cond: [{ $eq: ["$balls", 0] }, 0, { $multiply: [{ $divide: ["$runs", "$balls"] }, 100] }]
         }
       }
     },
+    { $project: { matchesSet: 0 } },
     { $sort: { runs: -1, strikeRate: -1 } },
     { $limit: 5 }
   ]);
@@ -37,16 +47,23 @@ router.get("/", auth(), async (_, res) => {
           $sum: { $cond: [{ $eq: ["$innings.balls.wicket.isWicket", true] }, 1, 0] }
         },
         runsConceded: { $sum: { $add: ["$innings.balls.runs", "$innings.balls.extras.runs"] } },
-        balls: { $sum: 1 }
+        balls: {
+          $sum: {
+            $cond: [{ $in: ["$innings.balls.extras.type", legalBowlTypes] }, 1, 0]
+          }
+        },
+        matchesSet: { $addToSet: "$matchId" }
       }
     },
     {
       $addFields: {
+        matches: { $size: "$matchesSet" },
         economy: {
           $cond: [{ $eq: ["$balls", 0] }, 0, { $multiply: [{ $divide: ["$runsConceded", "$balls"] }, 6] }]
         }
       }
     },
+    { $project: { matchesSet: 0 } },
     { $sort: { wickets: -1, economy: 1 } },
     { $limit: 5 }
   ]);

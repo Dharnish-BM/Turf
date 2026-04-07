@@ -22,6 +22,7 @@ import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import DeleteSweepRoundedIcon from "@mui/icons-material/DeleteSweepRounded";
 import { api } from "../services/api";
 import { useApp } from "../context/useApp";
 
@@ -35,9 +36,14 @@ const statusConfig = {
 
 export default function MatchesPage() {
   const navigate = useNavigate();
-  const { players, captains, matches, bootstrap, user, showToast, setSelectedMatch } = useApp();
+  const { players, captains, matches, bootstrap, user, showToast, selectedMatch, setSelectedMatch } = useApp();
   const isAdmin = user?.role === "admin";
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [form, setForm] = useState({
     name: "",
     teamA: "",
@@ -76,6 +82,49 @@ export default function MatchesPage() {
     }
   }
 
+  function openDelete(matchId) {
+    setDeleteId(matchId);
+    setDeleteOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/matches/${deleteId}`);
+      showToast("Match deleted");
+      setDeleteOpen(false);
+      setDeleteId("");
+      await bootstrap();
+      if (selectedMatch && String(selectedMatch) === String(deleteId)) {
+        setSelectedMatch("");
+        navigate("/matches");
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || err?.message || "Could not delete match", "error");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmClearHistory() {
+    setClearing(true);
+    try {
+      await api.delete("/matches");
+      showToast("All matches cleared");
+      setClearOpen(false);
+      await bootstrap();
+      if (selectedMatch) {
+        setSelectedMatch("");
+        navigate("/matches");
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || err?.message || "Could not clear history", "error");
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <Stack spacing={3}>
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={2}>
@@ -86,9 +135,20 @@ export default function MatchesPage() {
           <Typography color="text.secondary">Create fixtures, then open a workspace for toss, auction, and scoring.</Typography>
         </Box>
         {isAdmin && (
-          <Button variant="contained" size="large" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
-            New match
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button variant="contained" size="large" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
+              New match
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              size="large"
+              startIcon={<DeleteSweepRoundedIcon />}
+              onClick={() => setClearOpen(true)}
+            >
+              Clear history
+            </Button>
+          </Stack>
         )}
       </Box>
 
@@ -126,7 +186,6 @@ export default function MatchesPage() {
                   </CardContent>
                   <CardActions>
                     <Button
-                      fullWidth
                       endIcon={<OpenInNewRoundedIcon />}
                       onClick={() => {
                         setSelectedMatch(m._id);
@@ -135,6 +194,17 @@ export default function MatchesPage() {
                     >
                       Open workspace
                     </Button>
+                    {isAdmin && (
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        disabled={m.status === "live" || m.status === "completed"}
+                        onClick={() => openDelete(m._id)}
+                        sx={{ ml: 1 }}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </CardActions>
                 </Card>
               </Grid>
@@ -254,6 +324,40 @@ export default function MatchesPage() {
           </Button>
           <Button type="submit" variant="contained" disabled={captains.length < 2}>
             Create &amp; open
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onClose={() => (deleting ? null : setDeleteOpen(false))} fullWidth maxWidth="sm">
+        <DialogTitle>Delete match</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary">
+            This will permanently delete the match and its scorecard. You can only delete matches that are not live.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="error" onClick={confirmDelete} disabled={deleting}>
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={clearOpen} onClose={() => (clearing ? null : setClearOpen(false))} fullWidth maxWidth="sm">
+        <DialogTitle>Clear all history</DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary">
+            This will delete <strong>all matches, auctions, and scorecards</strong> for this app. Players and accounts will be kept.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearOpen(false)} disabled={clearing}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="error" onClick={confirmClearHistory} disabled={clearing}>
+            {clearing ? "Clearing…" : "Clear history"}
           </Button>
         </DialogActions>
       </Dialog>

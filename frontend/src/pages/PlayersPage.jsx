@@ -24,12 +24,15 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import StarRoundedIcon from "@mui/icons-material/StarRounded";
+import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
 import { api } from "../services/api";
 import { useApp } from "../context/useApp";
+import { useNavigate } from "react-router-dom";
 
 const emptyForm = { name: "", email: "", password: "", isCaptain: false };
 
 export default function PlayersPage() {
+  const navigate = useNavigate();
   const { players, bootstrap, user, showToast } = useApp();
   const isAdmin = user?.role === "admin";
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -135,6 +138,11 @@ export default function PlayersPage() {
                   </TableCell>
                   {isAdmin && (
                     <TableCell align="right">
+                      <Tooltip title="Stats">
+                        <IconButton size="small" onClick={() => navigate(`/players/${p._id}`)} color="secondary">
+                          <BarChartRoundedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Edit">
                         <IconButton size="small" onClick={() => openEdit(p)} color="primary">
                           <EditRoundedIcon fontSize="small" />

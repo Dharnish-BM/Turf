@@ -86,6 +86,13 @@ router.get("/", auth(), async (_, res) => {
   return res.json(matches);
 });
 
+router.delete("/", auth(["admin"]), async (_req, res) => {
+  await Scorecard.deleteMany({});
+  await Auction.deleteMany({});
+  await Match.deleteMany({});
+  return res.json({ message: "All matches and scorecards cleared (players left intact)" });
+});
+
 router.post("/", auth(["admin"]), async (req, res) => {
   const body = req.body;
   const teamAPlayers = new Set((body.teams?.teamA?.players || []).map(String));
@@ -125,6 +132,23 @@ router.post("/", auth(["admin"]), async (req, res) => {
     });
   }
   return res.status(201).json(match);
+});
+
+router.delete("/:id", auth(["admin"]), async (req, res) => {
+  const matchId = String(req.params.id);
+  const match = await Match.findById(matchId);
+  if (!match) {
+    return res.status(404).json({ message: "Match not found" });
+  }
+  if (match.status === "live" || match.status === "completed") {
+    return res.status(400).json({ message: "Cannot delete a match that is live or completed" });
+  }
+
+  await Scorecard.deleteMany({ matchId });
+  await Auction.deleteMany({ matchId });
+  await Match.deleteOne({ _id: matchId });
+
+  return res.json({ message: "Match deleted" });
 });
 
 router.patch("/:id/setup", auth(["admin"]), async (req, res) => {

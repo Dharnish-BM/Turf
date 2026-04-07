@@ -45,6 +45,7 @@ export default function LeaderboardPage() {
             <TableRow sx={{ bgcolor: "action.hover" }}>
               <TableCell width={56}>#</TableCell>
               <TableCell>Player</TableCell>
+              <TableCell align="right">Matches</TableCell>
               <TableCell align="right">Runs</TableCell>
               <TableCell align="right">SR</TableCell>
             </TableRow>
@@ -52,7 +53,7 @@ export default function LeaderboardPage() {
           <TableBody>
             {bats.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={5}>
                   <Typography color="text.secondary" align="center" py={3}>
                     No batting stats yet — score a few innings first.
                   </Typography>
@@ -69,6 +70,7 @@ export default function LeaderboardPage() {
                     <TableCell>
                       <Typography fontWeight={600}>{b.name}</Typography>
                     </TableCell>
+                    <TableCell align="right">{b.matches ?? 0}</TableCell>
                     <TableCell align="right">{b.runs}</TableCell>
                     <TableCell align="right">{Number(b.strikeRate).toFixed(2)}</TableCell>
                   </TableRow>
@@ -91,6 +93,7 @@ export default function LeaderboardPage() {
             <TableRow sx={{ bgcolor: "action.hover" }}>
               <TableCell width={56}>#</TableCell>
               <TableCell>Player</TableCell>
+              <TableCell align="right">Matches</TableCell>
               <TableCell align="right">Wickets</TableCell>
               <TableCell align="right">Economy</TableCell>
             </TableRow>
@@ -98,7 +101,7 @@ export default function LeaderboardPage() {
           <TableBody>
             {bowls.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={5}>
                   <Typography color="text.secondary" align="center" py={3}>
                     No bowling stats yet.
                   </Typography>
@@ -115,6 +118,7 @@ export default function LeaderboardPage() {
                     <TableCell>
                       <Typography fontWeight={600}>{b.name}</Typography>
                     </TableCell>
+                    <TableCell align="right">{b.matches ?? 0}</TableCell>
                     <TableCell align="right">{b.wickets}</TableCell>
                     <TableCell align="right">{Number(b.economy).toFixed(2)}</TableCell>
                   </TableRow>

@@ -1,18 +1,18 @@
-import { useState } from "react";
-import { Navigate } from "react-router-dom";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import TextField from "@mui/material/TextField";
-import Button from "@mui/material/Button";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
-import InputAdornment from "@mui/material/InputAdornment";
-import IconButton from "@mui/material/IconButton";
-import SportsCricketRoundedIcon from "@mui/icons-material/SportsCricketRounded";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import SportsCricketRoundedIcon from "@mui/icons-material/SportsCricketRounded";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { useApp } from "../context/useApp";
 
 export default function LoginPage() {
@@ -130,12 +130,6 @@ export default function LoginPage() {
           <Button type="submit" variant="contained" size="large" disabled={submitting} sx={{ py: 1.25 }}>
             {submitting ? "Signing in…" : "Sign in"}
           </Button>
-          <Typography variant="caption" color="text.secondary" textAlign="center">
-            First-time setup: create admin with POST{" "}
-            <Box component="code" sx={{ bgcolor: "grey.100", px: 0.5, borderRadius: 0.5, fontSize: "0.75rem" }}>
-              /api/auth/register-admin
-            </Box>
-          </Typography>
         </Stack>
       </Paper>
     </Box>
