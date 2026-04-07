@@ -18,6 +18,8 @@ const ballSchema = new mongoose.Schema(
       type: { type: String, default: "" },
       playerOut: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
     },
+    nextBatsman: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    onStrikeNext: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     over: { type: Number, required: true },
     ball: { type: Number, required: true }
   },
@@ -39,6 +41,9 @@ const scorecardSchema = new mongoose.Schema(
         striker: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
         nonStriker: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
         currentBowler: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        openingStriker: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        openingNonStriker: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        openingBowler: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
         target: { type: Number, default: 0 },
         isComplete: { type: Boolean, default: false },
         nextBatsmanRequired: { type: Boolean, default: false },

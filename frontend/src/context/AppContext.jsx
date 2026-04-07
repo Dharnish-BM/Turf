@@ -14,6 +14,30 @@ export function AppProvider({ children }) {
   const [auctionState, setAuctionState] = useState(null);
   const [auctionError, setAuctionError] = useState("");
   const [scorecard, setScorecard] = useState(null);
+  const [bootstrapLoading, setBootstrapLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState(null);
+
+  const showToast = useCallback((message, severity = "success") => {
+    setSnackbar({ message, severity });
+  }, []);
+
+  const hideToast = useCallback(() => setSnackbar(null), []);
+
+  const refreshMatchInList = useCallback(async (matchId) => {
+    if (!matchId) return;
+    try {
+      const { data } = await api.get(`/matches/${matchId}`);
+      setMatches((prev) => {
+        const i = prev.findIndex((m) => String(m._id) === String(matchId));
+        if (i === -1) return [...prev, data];
+        const next = [...prev];
+        next[i] = data;
+        return next;
+      });
+    } catch {
+      showToast("Could not refresh match", "error");
+    }
+  }, [showToast]);
 
   useEffect(() => {
     setAuthToken(token);
@@ -21,14 +45,19 @@ export function AppProvider({ children }) {
   }, [token]);
 
   const bootstrap = useCallback(async () => {
-    const [playersRes, matchesRes, leaderboardRes] = await Promise.all([
-      api.get("/players"),
-      api.get("/matches"),
-      api.get("/leaderboard")
-    ]);
-    setPlayers(playersRes.data);
-    setMatches(matchesRes.data);
-    setLeaderboard(leaderboardRes.data);
+    setBootstrapLoading(true);
+    try {
+      const [playersRes, matchesRes, leaderboardRes] = await Promise.all([
+        api.get("/players"),
+        api.get("/matches"),
+        api.get("/leaderboard")
+      ]);
+      setPlayers(playersRes.data);
+      setMatches(matchesRes.data);
+      setLeaderboard(leaderboardRes.data);
+    } finally {
+      setBootstrapLoading(false);
+    }
   }, []);
 
   async function login(email, password) {
@@ -132,7 +161,12 @@ export function AppProvider({ children }) {
     login,
     logout,
     bootstrap,
-    loadScorecard
+    loadScorecard,
+    bootstrapLoading,
+    snackbar,
+    showToast,
+    hideToast,
+    refreshMatchInList
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
