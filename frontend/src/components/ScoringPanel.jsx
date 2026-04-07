@@ -79,6 +79,40 @@ function winProbabilityChase({ runsRequired, ballsRemaining, wicketsDown, curren
   return Math.round(clamp(p, 1, 99));
 }
 
+function formatResult(scorecard, activeMatch) {
+  if (!scorecard?.winner || !activeMatch) return "";
+  const teamAName = activeMatch.teams?.teamA?.name || "Team A";
+  const teamBName = activeMatch.teams?.teamB?.name || "Team B";
+  if (scorecard.winner === "draw") {
+    return "Match drawn";
+  }
+  if (!scorecard.innings || scorecard.innings.length < 2) {
+    const winnerName = scorecard.winner === "teamA" ? teamAName : teamBName;
+    return `${winnerName} won`;
+  }
+  const firstInnings = scorecard.innings[0];
+  const secondInnings = scorecard.innings[1];
+  const firstTeam = firstInnings.battingTeam;
+  const secondTeam = secondInnings.battingTeam;
+  const firstRuns = firstInnings.totalRuns;
+  const secondRuns = secondInnings.totalRuns;
+  const winnerTeam = scorecard.winner;
+  const loserTeam = winnerTeam === firstTeam ? secondTeam : firstTeam;
+  const winnerName = winnerTeam === "teamA" ? teamAName : teamBName;
+  const loserName = loserTeam === "teamA" ? teamAName : teamBName;
+
+  if (winnerTeam === firstTeam) {
+    const margin = Math.max(firstRuns - secondRuns, 1);
+    return `${winnerName} beat ${loserName} by ${margin} run${margin === 1 ? "" : "s"}`;
+  }
+
+  const loserSquadSize = activeMatch.teams?.[loserTeam]?.players?.length || 11;
+  const maxWickets = Math.max(loserSquadSize - 1, 1);
+  const wicketsDown = secondInnings.wickets || 0;
+  const margin = Math.max(maxWickets - wicketsDown, 1);
+  return `${winnerName} beat ${loserName} by ${margin} wicket${margin === 1 ? "" : "s"}`;
+}
+
 export default function ScoringPanel() {
   const { selectedMatch, scorecard, activeMatch, bootstrap, loadScorecard, user } = useApp();
   const [error, setError] = useState("");
@@ -230,6 +264,7 @@ export default function ScoringPanel() {
   const displayInningLabel = innings?.target ? "2nd" : "1st";
   const showScoringPad = Boolean(innings && !innings.isComplete);
   const undoEnabled = isAdmin && clientCanUndo(scorecard);
+  const resultText = formatResult(scorecard, activeMatch);
 
   async function undoLastBall() {
     if (!selectedMatch || !isAdmin) return;
@@ -668,9 +703,7 @@ export default function ScoringPanel() {
               </Paper>
             ))}
             {scorecard.winner && (
-              <Alert severity="success">
-                Result: {scorecard.winner === "draw" ? "Draw" : scorecard.winner === "teamA" ? teamAName : teamBName}
-              </Alert>
+              <Alert severity="success">Result: {resultText}</Alert>
             )}
           </>
         )}
