@@ -40,6 +40,8 @@ export default function MatchWorkspacePage() {
   const isAdmin = user?.role === "admin";
   const [setupDraft, setSetupDraft] = useState({ format: "overs", overs: 10 });
   const [setupDirty, setSetupDirty] = useState(false);
+  const [coinFlipping, setCoinFlipping] = useState(false);
+  const [coinResult, setCoinResult] = useState("");
 
   const tabParam = searchParams.get("tab") || "overview";
   const displayMatch = matchRow || activeMatch;
@@ -93,6 +95,17 @@ export default function MatchWorkspacePage() {
     } catch (err) {
       showToast(err?.response?.data?.message || "Could not save toss", "error");
     }
+  }
+
+  function flipCoin() {
+    if (coinFlipping) return;
+    setCoinFlipping(true);
+    setCoinResult("");
+    const result = Math.random() < 0.5 ? "Heads" : "Tails";
+    window.setTimeout(() => {
+      setCoinResult(result);
+      setCoinFlipping(false);
+    }, 1400);
   }
 
   async function submitSetup(e) {
@@ -296,6 +309,47 @@ export default function MatchWorkspacePage() {
                   <Button type="submit" variant="contained" sx={{ mt: { xs: 0, sm: 0.5 } }} disabled={!isAdmin}>
                     Save toss
                   </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="h6" fontWeight={700} gutterBottom>
+                  Random coin toss
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Optional helper. Flip here, then set toss winner/decision manually above.
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+                  <Box
+                    sx={{
+                      width: 84,
+                      height: 84,
+                      borderRadius: "50%",
+                      border: "2px solid",
+                      borderColor: "warning.main",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "warning.light",
+                      color: "warning.contrastText",
+                      fontWeight: 800,
+                      animation: coinFlipping ? "spinCoin 1.4s linear" : "none",
+                      "@keyframes spinCoin": {
+                        "0%": { transform: "rotateY(0deg)" },
+                        "100%": { transform: "rotateY(1440deg)" }
+                      }
+                    }}
+                  >
+                    {coinResult || "COIN"}
+                  </Box>
+                  <Button variant="outlined" onClick={flipCoin} disabled={coinFlipping}>
+                    {coinFlipping ? "Flipping..." : "Flip coin"}
+                  </Button>
+                  {coinResult && <Chip color="warning" label={`Result: ${coinResult}`} />}
                 </Stack>
               </CardContent>
             </Card>

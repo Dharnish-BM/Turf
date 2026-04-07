@@ -54,6 +54,11 @@ export function AppProvider({ children }) {
     setUser(parseJwt(token));
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    refreshMe();
+  }, [token, refreshMe]);
+
   const bootstrap = useCallback(async () => {
     setBootstrapLoading(true);
     try {

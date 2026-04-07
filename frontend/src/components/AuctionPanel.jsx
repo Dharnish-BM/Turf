@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
@@ -20,6 +20,12 @@ import { useApp } from "../context/useApp";
 
 const MIN_BID = 5000;
 
+function timerReducer(state, action) {
+  if (action.type === "reset") return 20;
+  if (action.type === "tick") return state > 0 ? state - 1 : 0;
+  return state;
+}
+
 function budgetsToEntries(budgets) {
   if (!budgets) return [];
   if (budgets instanceof Map) return [...budgets.entries()];
@@ -30,6 +36,7 @@ function budgetsToEntries(budgets) {
 export default function AuctionPanel() {
   const { token, user, selectedMatch, auctionState, auctionError, players, bootstrap, showToast, activeMatch } = useApp();
   const [bidAmount, setBidAmount] = useState(MIN_BID);
+  const [timerSec, dispatchTimer] = useReducer(timerReducer, 20);
 
   const isAdmin = user?.role === "admin";
   const userId = String(user?.id || user?._id || "");
@@ -64,6 +71,20 @@ export default function AuctionPanel() {
   const canStart = loaded && isAdmin && selectedMatch && !running && !completed && pending;
   const canSell = isAdmin && selectedMatch && running && currentPlayer;
   const topBid = bids[0] || null;
+  const timerResetKey = `${running ? 1 : 0}-${currentPlayer?._id || currentPlayer || ""}-${highest}-${bids.length}`;
+
+  useEffect(() => {
+    if (!running || !currentPlayer) return;
+    dispatchTimer({ type: "reset" });
+  }, [timerResetKey, running, currentPlayer]);
+
+  useEffect(() => {
+    if (!running || !currentPlayer) return;
+    const id = setInterval(() => {
+      dispatchTimer({ type: "tick" });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [running, currentPlayer, timerResetKey]);
 
   function emitStartAuction() {
     getAuctionSocket(token).emit("auction:start", { matchId: selectedMatch });
@@ -149,6 +170,9 @@ export default function AuctionPanel() {
               )}
               <Typography variant="body2" color="text.secondary">
                 Next minimum bid: <strong>₹{nextMin.toLocaleString()}</strong> (₹500 above current best)
+              </Typography>
+              <Typography variant="body2" color={timerSec <= 5 ? "error.main" : "text.secondary"} sx={{ mt: 0.5 }}>
+                Dummy timer: <strong>{timerSec}s</strong> (resets on each bid)
               </Typography>
               {queueLen > 0 && (
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
