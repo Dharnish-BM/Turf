@@ -80,31 +80,37 @@ export function setupAuctionSocket(io) {
 
     socket.on("bid:placed", async ({ matchId, amount }) => {
       const auction = await Auction.findOne({ matchId });
-      if (!auction || auction.status !== "running") return;
-      if (!auction.currentPlayer) return;
-      if (!socket.user.isCaptain) return;
+      if (!auction || auction.status !== "running") {
+        io.to(getRoom(matchId)).emit("auction:error", "Auction is not running");
+        return;
+      }
+      if (!auction.currentPlayer) {
+        io.to(getRoom(matchId)).emit("auction:error", "No current player on the block");
+        return;
+      }
       const allowedCaptain = await isMatchCaptain(matchId, socket.user.id);
       if (!allowedCaptain) {
         io.to(getRoom(matchId)).emit("auction:error", "Only captains of this match can bid");
         return;
       }
-      if (!Number.isFinite(amount) || amount < MIN_BID) {
+      const bidAmount = Number(amount);
+      if (!Number.isFinite(bidAmount) || bidAmount < MIN_BID) {
         io.to(getRoom(matchId)).emit("auction:error", `Bid must be at least ${MIN_BID}`);
         return;
       }
-      const captainBudget = auction.budgets.get(socket.user.id) || 0;
+      const captainBudget = auction.budgets.get(String(socket.user.id)) || 0;
       const highest = auction.bids.reduce((acc, bid) => Math.max(acc, bid.amount), 0);
-      if (amount <= highest) {
+      if (bidAmount <= highest) {
         io.to(getRoom(matchId)).emit("auction:error", "Bid must be higher than current highest");
         return;
       }
-      if (amount > captainBudget) {
+      if (bidAmount > captainBudget) {
         io.to(getRoom(matchId)).emit("auction:error", "Bid exceeds captain budget");
         return;
       }
-      auction.bids.push({ captain: socket.user.id, amount });
+      auction.bids.push({ captain: socket.user.id, amount: bidAmount });
       await auction.save();
-      io.to(getRoom(matchId)).emit("bid:placed", { captain: socket.user.id, amount });
+      io.to(getRoom(matchId)).emit("bid:placed", { captain: socket.user.id, amount: bidAmount });
       await emitState(io, matchId);
     });
 

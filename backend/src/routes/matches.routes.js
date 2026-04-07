@@ -122,9 +122,15 @@ router.post("/", auth(["admin"]), async (req, res) => {
   const match = await Match.create(payload);
   await Scorecard.create({ matchId: match._id, innings: [] });
   if (match.mode === "auction") {
+    const captainA = String(match.teams?.teamA?.captain || "");
+    const captainB = String(match.teams?.teamB?.captain || "");
+    const queue = (match.players || []).filter((pid) => {
+      const id = String(pid);
+      return id !== captainA && id !== captainB;
+    });
     await Auction.create({
       matchId: match._id,
-      playerQueue: match.players,
+      playerQueue: queue,
       budgets: {
         [String(match.teams.teamA.captain)]: 100000,
         [String(match.teams.teamB.captain)]: 100000
