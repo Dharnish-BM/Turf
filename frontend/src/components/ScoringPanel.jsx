@@ -245,8 +245,9 @@ export default function ScoringPanel() {
   const extrasLive = useMemo(() => extrasTotalsFromBalls(balls), [balls]);
   const recentOvers = useMemo(() => recentOversFromBalls(balls), [balls]);
 
-  const totalBallsLimit = (activeMatch?.overs || 0) * 6;
-  const ballsRem = innings ? Math.max(totalBallsLimit - innings.ballsFaced, 0) : 0;
+  const isTest = (activeMatch?.format || "overs") === "test";
+  const totalBallsLimit = isTest ? 0 : (activeMatch?.overs || 0) * 6;
+  const ballsRem = isTest ? 0 : innings ? Math.max(totalBallsLimit - innings.ballsFaced, 0) : 0;
   const runsReq = innings?.target ? Math.max(innings.target - innings.totalRuns, 0) : 0;
   const crr = innings?.ballsFaced ? ((innings.totalRuns * 6) / innings.ballsFaced).toFixed(2) : "0.00";
   const rrr = innings?.target && ballsRem > 0 ? ((runsReq * 6) / ballsRem).toFixed(2) : "0.00";
@@ -446,7 +447,7 @@ export default function ScoringPanel() {
               {isChase ? (
                 <Stack spacing={0.5}>
                   <Typography variant="body2">
-                    Target: {innings.target} · Need {runsReq} from {ballsRem} balls · RRR {rrr}
+                    Target: {innings.target} · Need {runsReq} {isTest ? "· Unlimited balls" : `from ${ballsRem} balls · RRR ${rrr}`}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Win probability (estimate): {wp}%
@@ -454,7 +455,7 @@ export default function ScoringPanel() {
                 </Stack>
               ) : (
                 <Typography variant="body2" color="text.secondary">
-                  First innings · {battingSideName} batting · {activeMatch?.overs || 0}-over match
+                  First innings · {battingSideName} batting · {isTest ? "Test format (unlimited balls)" : `${activeMatch?.overs || 0}-over match`}
                 </Typography>
               )}
             </Paper>

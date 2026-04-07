@@ -15,6 +15,11 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import Select from "@mui/material/Select";
+import Checkbox from "@mui/material/Checkbox";
+import ListItemText from "@mui/material/ListItemText";
 import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import { api } from "../services/api";
@@ -40,18 +45,21 @@ export default function MatchesPage() {
     captainA: "",
     captainB: "",
     mode: "manual",
+    format: "overs",
+    playerIds: [],
     overs: 10
   });
 
   async function createMatch(e) {
     e.preventDefault();
     try {
+      const selected = form.playerIds?.length ? form.playerIds : players.map((p) => p._id);
       const { data } = await api.post("/matches", {
         name: form.name,
-        players: players.map((p) => p._id),
+        players: selected,
         mode: form.mode,
-        format: "overs",
-        overs: Number(form.overs) || 10,
+        format: form.format,
+        overs: form.format === "overs" ? Number(form.overs) || 10 : undefined,
         teams: {
           teamA: { name: form.teamA, captain: form.captainA, players: [] },
           teamB: { name: form.teamB, captain: form.captainB, players: [] }
@@ -59,7 +67,7 @@ export default function MatchesPage() {
       });
       showToast("Match created");
       setCreateOpen(false);
-      setForm({ name: "", teamA: "", teamB: "", captainA: "", captainB: "", mode: "manual", overs: 10 });
+      setForm({ name: "", teamA: "", teamB: "", captainA: "", captainB: "", mode: "manual", format: "overs", playerIds: [], overs: 10 });
       await bootstrap();
       setSelectedMatch(data._id);
       navigate(`/matches/${data._id}`);
@@ -193,6 +201,10 @@ export default function MatchesPage() {
               <MenuItem value="manual">Manual teams</MenuItem>
               <MenuItem value="auction">Auction</MenuItem>
             </TextField>
+            <TextField select label="Format" fullWidth value={form.format} onChange={(e) => setForm((f) => ({ ...f, format: e.target.value }))}>
+              <MenuItem value="overs">Overs</MenuItem>
+              <MenuItem value="test">Test (unlimited balls)</MenuItem>
+            </TextField>
             <TextField
               type="number"
               label="Overs"
@@ -200,9 +212,39 @@ export default function MatchesPage() {
               inputProps={{ min: 1 }}
               value={form.overs}
               onChange={(e) => setForm((f) => ({ ...f, overs: e.target.value }))}
+              disabled={form.format !== "overs"}
             />
+            <FormControl fullWidth>
+              <InputLabel id="available-players-label">Available players for this match</InputLabel>
+              <Select
+                labelId="available-players-label"
+                multiple
+                value={form.playerIds}
+                label="Available players for this match"
+                onChange={(e) => setForm((f) => ({ ...f, playerIds: e.target.value }))}
+                renderValue={(selected) => {
+                  if (!selected?.length) return "All players";
+                  const names = players
+                    .filter((p) => selected.includes(p._id))
+                    .map((p) => p.name)
+                    .slice(0, 4);
+                  const extra = selected.length - names.length;
+                  return extra > 0 ? `${names.join(", ")} +${extra}` : names.join(", ");
+                }}
+              >
+                <MenuItem value="" disabled>
+                  Select players (leave empty for all)
+                </MenuItem>
+                {players.map((p) => (
+                  <MenuItem key={p._id} value={p._id}>
+                    <Checkbox checked={form.playerIds.indexOf(p._id) > -1} />
+                    <ListItemText primary={p.name} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Typography variant="caption" color="text.secondary">
-              All current players are included in the player pool. Captains must be flagged on the Players page.
+              Pick who is available for this fixture. If you don’t select anyone, all players are included. Captains must be flagged on the Players page.
             </Typography>
           </Stack>
         </DialogContent>

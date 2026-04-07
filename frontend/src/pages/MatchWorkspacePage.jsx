@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink, useParams, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -38,10 +38,19 @@ export default function MatchWorkspacePage() {
   const { matches, activeMatch, setSelectedMatch, refreshMatchInList, user, bootstrap, showToast, bootstrapLoading } = useApp();
   const matchRow = useMemo(() => matches.find((m) => String(m._id) === String(matchId)), [matches, matchId]);
   const isAdmin = user?.role === "admin";
+  const [setupDraft, setSetupDraft] = useState({ format: "overs", overs: 10 });
+  const [setupDirty, setSetupDirty] = useState(false);
 
   const tabParam = searchParams.get("tab") || "overview";
   const displayMatch = matchRow || activeMatch;
   const isAuctionMatch = displayMatch?.mode === "auction";
+  const setupBase = useMemo(() => {
+    return {
+      format: displayMatch?.format || "overs",
+      overs: displayMatch?.overs || 10
+    };
+  }, [displayMatch?.format, displayMatch?.overs]);
+  const setupValue = setupDirty ? setupDraft : setupBase;
 
   const validTab = useMemo(() => {
     const allowed = isAuctionMatch ? ["overview", "auction", "scoring"] : ["overview", "scoring"];
@@ -86,6 +95,23 @@ export default function MatchWorkspacePage() {
     }
   }
 
+  async function submitSetup(e) {
+    e.preventDefault();
+    if (!matchId || !isAdmin) return;
+    try {
+      await api.patch(`/matches/${matchId}/setup`, {
+        format: setupValue.format,
+        overs: setupValue.format === "overs" ? Number(setupValue.overs) : undefined
+      });
+      showToast("Match setup saved");
+      setSetupDirty(false);
+      await bootstrap();
+      await refreshMatchInList(matchId);
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Could not save match setup", "error");
+    }
+  }
+
   if (!matchId) {
     return (
       <Button component={RouterLink} to="/matches">
@@ -114,7 +140,8 @@ export default function MatchWorkspacePage() {
   const teamAName = displayMatch.teams?.teamA?.name || "Team A";
   const teamBName = displayMatch.teams?.teamB?.name || "Team B";
   const canDnDSquads =
-    isAdmin && displayMatch.mode === "manual" && displayMatch.status !== "live" && displayMatch.status !== "completed";
+    isAdmin && displayMatch.status !== "live" && displayMatch.status !== "completed";
+  const canEditSetup = isAdmin && !displayMatch.toss?.winner && displayMatch.status !== "live" && displayMatch.status !== "completed";
 
   return (
     <Stack spacing={2.5}>
@@ -156,6 +183,57 @@ export default function MatchWorkspacePage() {
 
       {validTab === "overview" && (
         <Stack spacing={2}>
+          {canEditSetup && (
+            <Card variant="outlined" component="form" onSubmit={submitSetup}>
+              <CardContent>
+                <Typography variant="h6" fontWeight={700} gutterBottom>
+                  Match setup
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Set format and overs before recording the toss.
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "flex-start" }}>
+                  <TextField
+                    select
+                    required
+                    label="Format"
+                    value={setupValue.format}
+                    onChange={(e) => {
+                      if (!setupDirty) {
+                        setSetupDraft(setupBase);
+                        setSetupDirty(true);
+                      }
+                      setSetupDraft((s) => ({ ...s, format: e.target.value }));
+                    }}
+                    sx={{ minWidth: 220 }}
+                  >
+                    <MenuItem value="overs">Overs</MenuItem>
+                    <MenuItem value="test">Test (unlimited balls)</MenuItem>
+                  </TextField>
+                  <TextField
+                    type="number"
+                    required={setupValue.format === "overs"}
+                    disabled={setupValue.format !== "overs"}
+                    label="Overs"
+                    value={setupValue.overs}
+                    onChange={(e) => {
+                      if (!setupDirty) {
+                        setSetupDraft(setupBase);
+                        setSetupDirty(true);
+                      }
+                      setSetupDraft((s) => ({ ...s, overs: e.target.value }));
+                    }}
+                    inputProps={{ min: 1 }}
+                    sx={{ minWidth: 160 }}
+                  />
+                  <Button type="submit" variant="contained" sx={{ mt: { xs: 0, sm: 0.5 } }}>
+                    Save setup
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
+
           <Card variant="outlined">
             <CardContent>
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>

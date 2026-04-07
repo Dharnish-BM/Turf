@@ -81,7 +81,7 @@ export function replayInningsState(match, innMeta, balls) {
   }
 
   const allOut = wickets >= maxWickets;
-  const oversComplete = ballsFaced >= (match.overs || 10) * 6;
+  const oversComplete = match?.format === "overs" ? ballsFaced >= (match.overs || 10) * 6 : false;
   const chaseDone = target > 0 && totalRuns >= target;
   const isComplete = allOut || oversComplete || chaseDone;
 

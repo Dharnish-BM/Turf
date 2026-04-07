@@ -34,6 +34,7 @@ export default function AuctionPanel() {
   const isAdmin = user?.role === "admin";
   const isCaptain = !!user?.isCaptain;
 
+  const loaded = Boolean(auctionState);
   const status = auctionState?.status;
   const running = status === "running";
   const completed = status === "completed";
@@ -56,7 +57,7 @@ export default function AuctionPanel() {
   const queueLen = auctionState?.playerQueue?.length ?? 0;
 
   const canBidNow = isCaptain && selectedMatch && running && currentPlayer;
-  const canStart = isAdmin && selectedMatch && !running && !completed && pending;
+  const canStart = loaded && isAdmin && selectedMatch && !running && !completed && pending;
   const canSell = isAdmin && selectedMatch && running && currentPlayer;
 
   function emitStartAuction() {
@@ -109,6 +110,8 @@ export default function AuctionPanel() {
       </Box>
 
       {auctionError && <Alert severity="error">{auctionError}</Alert>}
+
+      {!loaded && <Alert severity="info">Loading auction… If this stays, check socket connection and match selection.</Alert>}
 
       {!isCaptain && !isAdmin && <Alert severity="info">Only team captains can place bids. Admins run the auction clock.</Alert>}
 

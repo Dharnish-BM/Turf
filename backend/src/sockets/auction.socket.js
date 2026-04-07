@@ -48,15 +48,25 @@ export function setupAuctionSocket(io) {
     });
 
     socket.on("auction:start", async ({ matchId }) => {
-      if (socket.user.role !== "admin") return;
+      if (socket.user.role !== "admin") {
+        io.to(getRoom(matchId)).emit("auction:error", "Only admin can start the auction");
+        return;
+      }
       const auction = await Auction.findOne({ matchId });
-      if (!auction) return;
+      if (!auction) {
+        io.to(getRoom(matchId)).emit("auction:error", "Auction document not found for this match");
+        return;
+      }
       if (auction.status === "running") {
         io.to(getRoom(matchId)).emit("auction:error", "Auction already running");
         return;
       }
       if (auction.status === "completed") {
         io.to(getRoom(matchId)).emit("auction:error", "Auction already completed");
+        return;
+      }
+      if (!auction.playerQueue?.length) {
+        io.to(getRoom(matchId)).emit("auction:error", "No players in auction queue for this match");
         return;
       }
       auction.status = "running";
@@ -99,9 +109,19 @@ export function setupAuctionSocket(io) {
     });
 
     socket.on("player:sold", async ({ matchId }) => {
-      if (socket.user.role !== "admin") return;
+      if (socket.user.role !== "admin") {
+        io.to(getRoom(matchId)).emit("auction:error", "Only admin can sell a player");
+        return;
+      }
       const auction = await Auction.findOne({ matchId });
-      if (!auction || !auction.currentPlayer) return;
+      if (!auction) {
+        io.to(getRoom(matchId)).emit("auction:error", "Auction document not found for this match");
+        return;
+      }
+      if (!auction.currentPlayer) {
+        io.to(getRoom(matchId)).emit("auction:error", "No current player to sell");
+        return;
+      }
       const winningBid = auction.bids.reduce((best, bid) => (bid.amount > (best?.amount || 0) ? bid : best), null);
 
       if (winningBid) {

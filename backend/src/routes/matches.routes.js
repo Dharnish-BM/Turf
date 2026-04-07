@@ -127,14 +127,47 @@ router.post("/", auth(["admin"]), async (req, res) => {
   return res.status(201).json(match);
 });
 
+router.patch("/:id/setup", auth(["admin"]), async (req, res) => {
+  const { format, overs } = req.body || {};
+  const match = await Match.findById(req.params.id);
+  if (!match) {
+    return res.status(404).json({ message: "Match not found" });
+  }
+  if (match.status === "live" || match.status === "completed") {
+    return res.status(400).json({ message: "Cannot change setup while match is live or completed" });
+  }
+  if (match.toss?.winner) {
+    return res.status(400).json({ message: "Cannot change setup after toss is recorded" });
+  }
+
+  const fmt = String(format || match.format || "overs");
+  if (!["overs", "test"].includes(fmt)) {
+    return res.status(400).json({ message: "Invalid format (must be overs or test)" });
+  }
+  match.format = fmt;
+  if (fmt === "overs") {
+    const o = Number(overs);
+    if (!Number.isFinite(o) || o < 1 || o > 200) {
+      return res.status(400).json({ message: "Overs must be between 1 and 200" });
+    }
+    match.overs = Math.floor(o);
+  }
+
+  await match.save();
+  const populated = await Match.findById(match._id)
+    .populate("players", "name email isCaptain")
+    .populate("teams.teamA.captain", "name")
+    .populate("teams.teamB.captain", "name")
+    .populate("teams.teamA.players", "name email isCaptain")
+    .populate("teams.teamB.players", "name email isCaptain");
+  return res.json(populated);
+});
+
 router.patch("/:id/teams/players", auth(["admin"]), async (req, res) => {
   const { teamAPlayerIds = [], teamBPlayerIds = [] } = req.body;
   const match = await Match.findById(req.params.id);
   if (!match) {
     return res.status(404).json({ message: "Match not found" });
-  }
-  if (match.mode !== "manual") {
-    return res.status(400).json({ message: "Squads can only be edited for manual (non-auction) matches" });
   }
   if (match.status === "live" || match.status === "completed") {
     return res.status(400).json({ message: "Cannot change squads while the match is live or completed" });
@@ -467,7 +500,7 @@ router.post("/:id/score", auth(["admin"]), async (req, res) => {
   }
 
   const allOut = innings.wickets >= maxWicketsForBattingTeam(battingTeam);
-  const oversComplete = innings.ballsFaced >= (match.overs || 10) * 6;
+  const oversComplete = match.format === "overs" ? innings.ballsFaced >= (match.overs || 10) * 6 : false;
   const chaseDone = innings.target > 0 && innings.totalRuns >= innings.target;
   if (allOut || oversComplete || chaseDone) {
     innings.isComplete = true;
