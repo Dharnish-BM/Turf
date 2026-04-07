@@ -122,13 +122,14 @@ export function setupAuctionSocket(io) {
         io.to(getRoom(matchId)).emit("auction:error", "No current player to sell");
         return;
       }
+      const currentId = auction.currentPlayer;
       const winningBid = auction.bids.reduce((best, bid) => (bid.amount > (best?.amount || 0) ? bid : best), null);
 
       if (winningBid) {
         const remaining = (auction.budgets.get(String(winningBid.captain)) || 0) - winningBid.amount;
         auction.budgets.set(String(winningBid.captain), remaining);
         auction.soldPlayers.push({
-          player: auction.currentPlayer,
+          player: currentId,
           captain: winningBid.captain,
           amount: winningBid.amount
         });
@@ -138,18 +139,38 @@ export function setupAuctionSocket(io) {
           const winningCaptain = String(winningBid.captain);
           if (String(match.teams.teamA.captain) === winningCaptain) {
             const nextPlayers = new Set(match.teams.teamA.players.map(String));
-            nextPlayers.add(String(auction.currentPlayer));
+            nextPlayers.add(String(currentId));
             match.teams.teamA.players = [...nextPlayers];
           } else if (String(match.teams.teamB.captain) === winningCaptain) {
             const nextPlayers = new Set(match.teams.teamB.players.map(String));
-            nextPlayers.add(String(auction.currentPlayer));
+            nextPlayers.add(String(currentId));
             match.teams.teamB.players = [...nextPlayers];
           }
           await match.save();
         }
+
+        // Sold: remove this player from queue
+        auction.playerQueue = auction.playerQueue.filter((p) => String(p) !== String(currentId));
+      } else {
+        // Unsold: move player to end of queue so they can be re-auctioned after others
+        const remainingQueue = auction.playerQueue.filter((p) => String(p) !== String(currentId));
+        if (remainingQueue.length === 0) {
+          // Everyone has already been cycled and no one bid on the last player: mark auction complete
+          auction.playerQueue = [];
+          auction.currentPlayer = null;
+          auction.bids = [];
+          auction.status = "completed";
+          await Match.findByIdAndUpdate(matchId, { status: "ready" });
+          await auction.save();
+          io.to(getRoom(matchId)).emit("player:sold", null);
+          io.to(getRoom(matchId)).emit("player:next", { currentPlayer: null });
+          await emitState(io, matchId);
+          return;
+        }
+        remainingQueue.push(currentId);
+        auction.playerQueue = remainingQueue;
       }
 
-      auction.playerQueue = auction.playerQueue.filter((p) => String(p) !== String(auction.currentPlayer));
       auction.currentPlayer = auction.playerQueue[0] || null;
       auction.bids = [];
       if (!auction.currentPlayer) {
