@@ -23,6 +23,16 @@ export function AppProvider({ children }) {
 
   const hideToast = useCallback(() => setSnackbar(null), []);
 
+  const refreshMe = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { data } = await api.get("/auth/me");
+      setUser((prev) => ({ ...(prev || {}), ...data }));
+    } catch {
+      // ignore here; protected pages will handle auth failures
+    }
+  }, [token]);
+
   const refreshMatchInList = useCallback(async (matchId) => {
     if (!matchId) return;
     try {
@@ -65,6 +75,13 @@ export function AppProvider({ children }) {
     const authToken = response.data.token;
     localStorage.setItem("token", authToken);
     setToken(authToken);
+    setAuthToken(authToken);
+    try {
+      const { data } = await api.get("/auth/me");
+      setUser((prev) => ({ ...(prev || {}), ...data }));
+    } catch {
+      // ignore and continue
+    }
     await bootstrap();
   }
 
@@ -166,7 +183,8 @@ export function AppProvider({ children }) {
     snackbar,
     showToast,
     hideToast,
-    refreshMatchInList
+    refreshMatchInList,
+    refreshMe
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -22,6 +22,7 @@ import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
 import LeaderboardRoundedIcon from "@mui/icons-material/LeaderboardRounded";
+import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import SportsCricketRoundedIcon from "@mui/icons-material/SportsCricketRounded";
 import LinearProgress from "@mui/material/LinearProgress";
@@ -77,6 +78,7 @@ function NavList({ onNavigate }) {
 
 export default function MainLayout() {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const { user, logout, bootstrapLoading } = useApp();
@@ -133,11 +135,22 @@ export default function MainLayout() {
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700 }} />
           <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
-            <Avatar sx={{ width: 36, height: 36, bgcolor: "primary.main", fontSize: "0.95rem" }}>
+            <Avatar src={user?.avatarUrl || undefined} sx={{ width: 36, height: 36, bgcolor: "primary.main", fontSize: "0.95rem" }}>
               {(user?.name || user?.email || "?").charAt(0).toUpperCase()}
             </Avatar>
           </IconButton>
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+            <MenuItem
+              onClick={() => {
+                setAnchorEl(null);
+                navigate("/profile");
+              }}
+            >
+              <ListItemIcon>
+                <PersonRoundedIcon fontSize="small" />
+              </ListItemIcon>
+              Profile
+            </MenuItem>
             <MenuItem
               onClick={() => {
                 setAnchorEl(null);

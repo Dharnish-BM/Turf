@@ -109,13 +109,13 @@ export default function PlayersPage() {
               <TableCell>Name</TableCell>
               <TableCell>Email</TableCell>
               <TableCell align="center">Role</TableCell>
-              {isAdmin && <TableCell align="right">Actions</TableCell>}
+              <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {players.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 4 : 3}>
+                <TableCell colSpan={4}>
                   <Typography color="text.secondary" align="center" py={4}>
                     No players yet. Add your squad to create matches.
                   </Typography>
@@ -136,25 +136,27 @@ export default function PlayersPage() {
                   <TableCell align="center">
                     <Chip label="Player" size="small" />
                   </TableCell>
-                  {isAdmin && (
-                    <TableCell align="right">
-                      <Tooltip title="Stats">
-                        <IconButton size="small" onClick={() => navigate(`/players/${p._id}`)} color="secondary">
-                          <BarChartRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => openEdit(p)} color="primary">
-                          <EditRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => setDeleteId(p._id)}>
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  )}
+                  <TableCell align="right">
+                    <Tooltip title="View stats">
+                      <IconButton size="small" onClick={() => navigate(`/players/${p._id}`)} color="secondary">
+                        <BarChartRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    {isAdmin && (
+                      <>
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => openEdit(p)} color="primary">
+                            <EditRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" color="error" onClick={() => setDeleteId(p._id)}>
+                            <DeleteOutlineRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}

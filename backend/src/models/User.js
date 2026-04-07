@@ -7,7 +7,8 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     role: { type: String, enum: ["admin", "player"], default: "player" },
-    isCaptain: { type: Boolean, default: false }
+    isCaptain: { type: Boolean, default: false },
+    avatarUrl: { type: String, default: "" }
   },
   { timestamps: true }
 );

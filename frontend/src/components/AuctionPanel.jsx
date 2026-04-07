@@ -32,7 +32,10 @@ export default function AuctionPanel() {
   const [bidAmount, setBidAmount] = useState(MIN_BID);
 
   const isAdmin = user?.role === "admin";
-  const isCaptain = !!user?.isCaptain;
+  const userId = String(user?.id || user?._id || "");
+  const captainAId = String(activeMatch?.teams?.teamA?.captain?._id || activeMatch?.teams?.teamA?.captain || "");
+  const captainBId = String(activeMatch?.teams?.teamB?.captain?._id || activeMatch?.teams?.teamB?.captain || "");
+  const isCaptainForMatch = Boolean(userId) && (userId === captainAId || userId === captainBId);
 
   const loaded = Boolean(auctionState);
   const status = auctionState?.status;
@@ -56,9 +59,10 @@ export default function AuctionPanel() {
   const soldPlayers = auctionState?.soldPlayers || [];
   const queueLen = auctionState?.playerQueue?.length ?? 0;
 
-  const canBidNow = isCaptain && selectedMatch && running && currentPlayer;
+  const canBidNow = isCaptainForMatch && selectedMatch && running && currentPlayer;
   const canStart = loaded && isAdmin && selectedMatch && !running && !completed && pending;
   const canSell = isAdmin && selectedMatch && running && currentPlayer;
+  const topBid = bids[0] || null;
 
   function emitStartAuction() {
     getAuctionSocket(token).emit("auction:start", { matchId: selectedMatch });
@@ -113,7 +117,7 @@ export default function AuctionPanel() {
 
       {!loaded && <Alert severity="info">Loading auction… If this stays, check socket connection and match selection.</Alert>}
 
-      {!isCaptain && !isAdmin && <Alert severity="info">Only team captains can place bids. Admins run the auction clock.</Alert>}
+      {!isCaptainForMatch && !isAdmin && <Alert severity="info">Only captains of this match can place bids. Admin runs the auction clock.</Alert>}
 
       <Stack direction={{ xs: "column", lg: "row" }} spacing={2} alignItems="stretch">
         <Paper variant="outlined" sx={{ flex: 1, p: 2.5 }}>
@@ -125,6 +129,19 @@ export default function AuctionPanel() {
               <Typography variant="h4" fontWeight={800} color="primary.main" sx={{ my: 1 }}>
                 {currentName}
               </Typography>
+              {topBid && (
+                <Paper variant="outlined" sx={{ p: 1.5, mb: 1.5 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Current highest
+                  </Typography>
+                  <Typography variant="h6" fontWeight={800} color="secondary.main">
+                    {captainLabel(topBid.captain)}
+                  </Typography>
+                  <Typography variant="h5" fontWeight={900}>
+                    ₹{Number(topBid.amount || 0).toLocaleString()}
+                  </Typography>
+                </Paper>
+              )}
               <Typography variant="body2" color="text.secondary">
                 Next minimum bid: <strong>₹{nextMin.toLocaleString()}</strong> (₹500 above current best)
               </Typography>
@@ -158,37 +175,39 @@ export default function AuctionPanel() {
           </Stack>
         </Paper>
 
-        <Paper variant="outlined" sx={{ flex: 1, p: 2.5 }}>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            Captains — place bid
-          </Typography>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              type="number"
-              label="Your bid (₹)"
-              fullWidth
-              value={bidAmount}
-              onChange={(e) => setBidAmount(Number(e.target.value))}
-              inputProps={{ min: nextMin, step: 500 }}
-              helperText={`Must exceed ₹${highest.toLocaleString() || "0"} and stay within budget`}
-            />
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ gap: 1 }}>
-              {[nextMin, nextMin + 5000, nextMin + 10000, nextMin + 25000].map((amt) => (
-                <Tooltip key={amt} title={`Bid ₹${amt.toLocaleString()}`}>
-                  <Chip label={`₹${amt.toLocaleString()}`} onClick={() => setBidAmount(amt)} variant="outlined" />
-                </Tooltip>
-              ))}
+        {isCaptainForMatch && (
+          <Paper variant="outlined" sx={{ flex: 1, p: 2.5 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Captains — place bid
+            </Typography>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                type="number"
+                label="Your bid (₹)"
+                fullWidth
+                value={bidAmount}
+                onChange={(e) => setBidAmount(Number(e.target.value))}
+                inputProps={{ min: nextMin, step: 500 }}
+                helperText={`Must exceed ₹${highest.toLocaleString() || "0"} and stay within budget`}
+              />
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ gap: 1 }}>
+                {[nextMin, nextMin + 5000, nextMin + 10000, nextMin + 25000].map((amt) => (
+                  <Tooltip key={amt} title={`Bid ₹${amt.toLocaleString()}`}>
+                    <Chip label={`₹${amt.toLocaleString()}`} onClick={() => setBidAmount(amt)} variant="outlined" />
+                  </Tooltip>
+                ))}
+              </Stack>
+              <Button variant="contained" size="large" disabled={!canBidNow || Number(bidAmount) < nextMin} onClick={emitBid}>
+                Place bid
+              </Button>
+              {running && (
+                <Typography variant="caption" color="text.secondary">
+                  You are the captain for this match. Bids broadcast live to everyone in this room.
+                </Typography>
+              )}
             </Stack>
-            <Button variant="contained" size="large" disabled={!canBidNow || Number(bidAmount) < nextMin} onClick={emitBid}>
-              Place bid
-            </Button>
-            {isCaptain && running && (
-              <Typography variant="caption" color="text.secondary">
-                You must be the registered captain for this match to bid. Bids broadcast live to everyone in this room.
-              </Typography>
-            )}
-          </Stack>
-        </Paper>
+          </Paper>
+        )}
       </Stack>
 
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
